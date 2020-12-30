@@ -14,6 +14,7 @@ extern XNextEvent
 
 ; external functions from stdio library (ld-linux-x86-64.so.2)    
 extern exit
+extern printf
 
 %define	StructureNotifyMask	131072
 %define KeyPressMask		1
@@ -23,11 +24,12 @@ extern exit
 %define ButtonPress		4
 %define Expose			12
 %define ConfigureNotify		22
-%define CreateNotify 16
+%define CreateNotify    16
 %define QWORD	8
 %define DWORD	4
 %define WORD	2
 %define BYTE	1
+
 
 global main
 
@@ -41,10 +43,13 @@ width:         	resd	1
 height:        	resd	1
 window:		resq	1
 gc:		resq	1
+res:            resd    1
+
 
 section .data
 
 event:		times	24 dq 0
+
 
 ; Un point par ligne sous la forme X,Y,Z
 dodec:	dd	0.0,50.0,80.901699		; point 0
@@ -66,6 +71,25 @@ dodec:	dd	0.0,50.0,80.901699		; point 0
 ; pour la première face (0,8,9), on fera le produit vectoriel des vecteurs 80 (vecteur des points 8 et 0) et 89 (vecteur des points 8 et 9)	
 ; pour la deuxième face (0,2,8), on fera le produit vectoriel des vecteurs 20 (vecteur des points 2 et 0) et 28 (vecteur des points 2 et 8)
 ; etc...
+
+Xoff: dd 300.0
+Zoff: dd 300.0
+Yoff: dd 300.0
+df: dd  300.0
+
+i: dd 0
+j: dd 0
+
+print: db "%f",10,0
+print2: db "%d", 10,0
+
+x1:	dd	0
+x2:	dd	0
+y1:	dd	0
+y2:	dd	0
+count:  dd  0
+p:  dd  0
+
 faces:	dd	0,8,9,0
 		dd	0,2,8,0
 		dd	2,3,8,2
@@ -168,6 +192,87 @@ jmp boucle
 prog_principal:
 
 
+
+
+;mov eax, dword[i]
+;mov ebx, dword[faces + eax * DWORD]
+
+;cvtss2sd xmm0, dword[dodec + 0 * DWORD]
+;cvtss2sd xmm1, dword[dodec + 1 * DWORD]
+;cvtss2sd xmm2, dword[dodec + 2 * DWORD]
+
+;movss dword[x1], xmm0
+
+; Equation : X' =(df * X)/(Z + Zoff)+ Xoff  :   Y' =(df * Y)(Z + Zoff) + Yoff 
+
+;
+
+; #########################################
+
+boucle_j:
+
+mov r11d, dword[j]
+mov r12d, dword[faces + r11d * DWORD]
+imul r12d, 3
+
+
+boucle_i:
+
+
+mov r15d, r12d;
+
+movss xmm0, dword[dodec + r15d * DWORD] ; xmm0 = dodec[x]
+mulss xmm0, dword[df] ; xmm0 = df * X
+
+movss xmm1, dword[dodec + r15d * DWORD + 1] ; xmm1 = dodec[z]
+addss xmm1, dword[Zoff] ; xmm1 = Z + Zoff
+
+movss xmm2, dword[dodec + r15d * DWORD + 2] ; xmm2 = dodec[y]
+mulss xmm2, dword[df] ; xmm2 = df *  Y
+
+divss xmm0, xmm1 ; xmm0 = (df * X)/(Z + Zoff) 
+divss xmm2, xmm1 ; xmm2 = (df * Y)/(Z + Zoff)
+
+addss xmm0, dword[Xoff] ; xmm0 = X'
+addss xmm2, dword[Xoff] ; xmm2 = Y'
+
+cmp dword[i], 1
+jb jump
+
+cvtss2si ecx, xmm0
+cvtss2si r8d, xmm2
+cvtss2si r10, xmm6
+ 
+mov rdi,qword[display_name]
+mov rsi,qword[window]
+mov rdx,qword[gc]
+mov ecx,ecx	; coordonnée source en x
+mov r8d,r8d	; coordonnée source en y
+mov r9d,r8d	; coordonnée destination en x
+push r10		; coordonnée destination en y
+call XDrawLine
+
+jump:
+
+inc dword[i]
+
+movss xmm5, xmm0
+movss xmm6, xmm2
+
+;mov rdi, print
+;cvtss2sd xmm0, dword[x1]
+;mov rax, 1
+;call printf
+
+mov r12d, dword[j]
+inc dword[j]
+cmp dword[j], 80
+jb boucle_j
+
+
+
+
+ 
 ;##############################################
 ;##	Ici se termine VOTRE programme principal ##
 ;##############################################																																																																																																																																	     		     		jb boucle
